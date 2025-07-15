@@ -30,6 +30,9 @@
         "projectId": "0e91c315-0f68-44cf-a5c9-ff1ae105e330"
       }
     },
-    "owner": "dotcchix"
+    "owner": "dotcchix",
+    "android": {
+      "package": "com.dotcchix.taskscheduler"
+    }
   }
 }
