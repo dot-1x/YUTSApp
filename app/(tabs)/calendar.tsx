@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,116 +8,83 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Modal,
 } from 'react-native';
-import { ChevronLeft, ChevronRight, Clock, Trash2, Plus, CircleCheck as CheckCircle2, Circle, ChevronDown } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Clock, Trash2, Plus, CircleCheck as CheckCircle2, Circle } from 'lucide-react-native';
 import { router } from 'expo-router';
+import { useTasks, useTasksByDate } from '@/hooks/useDatabase';
 
-interface Task {
-  id: string;
-  title: string;
-  dueDate: string;
-  category: 'Meetings' | 'Design' | 'Calls' | 'Development' | 'Review';
-  completed: boolean;
-  time: string;
-}
-
-interface DateItem {
+interface CalendarDay {
   date: number;
-  day: string;
+  isCurrentMonth: boolean;
   fullDate: string;
+  hasTask: boolean;
   isToday: boolean;
 }
 
 export default function CalendarView() {
-  const [selectedDate, setSelectedDate] = useState(13);
-  const [currentMonth, setCurrentMonth] = useState(5); // 0-based index (5 = June)
-  const [currentYear, setCurrentYear] = useState(2022);
-  const [showMonthYearPicker, setShowMonthYearPicker] = useState(false);
-  const [tasks, setTasks] = useState<Task[]>([
-    {
-      id: '1',
-      title: 'NFT Dashboard Design',
-      dueDate: '13th June',
-      category: 'Design',
-      completed: false,
-      time: '2:30 PM'
-    },
-    {
-      id: '2',
-      title: 'Client Meeting',
-      dueDate: '13th June',
-      category: 'Meetings',
-      completed: true,
-      time: '10:00 AM'
-    },
-    {
-      id: '3',
-      title: 'Landing Page Review',
-      dueDate: '13th June',
-      category: 'Review',
-      completed: false,
-      time: '4:00 PM'
-    },
-    {
-      id: '4',
-      title: 'Mobile App Development',
-      dueDate: '14th June',
-      category: 'Development',
-      completed: false,
-      time: '9:00 AM'
-    },
-    {
-      id: '5',
-      title: 'Team Standup Call',
-      dueDate: '14th June',
-      category: 'Calls',
-      completed: false,
-      time: '11:30 AM'
-    },
-    {
-      id: '6',
-      title: 'UI Design Workshop',
-      dueDate: '15th June',
-      category: 'Design',
-      completed: false,
-      time: '3:00 PM'
-    },
-  ]);
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const { tasks, toggleTaskCompletion, deleteTask } = useTasks();
+  const { tasks: selectedDateTasks, refreshTasks } = useTasksByDate(selectedDate);
 
   const months = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
 
-  const years = Array.from({ length: 10 }, (_, i) => 2020 + i);
-
-  const calendarDates: DateItem[] = [
-    { date: 11, day: 'Mon', fullDate: '11th June', isToday: false },
-    { date: 12, day: 'Tue', fullDate: '12th June', isToday: false },
-    { date: 13, day: 'Wed', fullDate: '13th June', isToday: true },
-    { date: 14, day: 'Thu', fullDate: '14th June', isToday: false },
-    { date: 15, day: 'Fri', fullDate: '15th June', isToday: false },
-    { date: 16, day: 'Sat', fullDate: '16th June', isToday: false },
-    { date: 17, day: 'Sun', fullDate: '17th June', isToday: false },
-  ];
-
-  const getCategoryColor = (category: string) => {
-    const colors = {
-      'Meetings': '#3B82F6',
-      'Design': '#8B5CF6',
-      'Calls': '#F59E0B',
-      'Development': '#10B981',
-      'Review': '#EF4444',
-    };
-    return colors[category as keyof typeof colors] || '#6B7280';
+  const generateCalendarDays = (): CalendarDay[] => {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startDate = new Date(firstDay);
+    startDate.setDate(startDate.getDate() - firstDay.getDay());
+    
+    const days: CalendarDay[] = [];
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Get all task dates for marking
+    const taskDates = new Set(tasks.map(task => task.task_date));
+    
+    for (let i = 0; i < 42; i++) {
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + i);
+      
+      const dateString = date.toISOString().split('T')[0];
+      const isCurrentMonth = date.getMonth() === month;
+      
+      days.push({
+        date: date.getDate(),
+        isCurrentMonth,
+        fullDate: dateString,
+        hasTask: taskDates.has(dateString),
+        isToday: dateString === today,
+      });
+    }
+    
+    return days;
   };
 
-  const filteredTasks = tasks.filter(task => 
-    task.dueDate === calendarDates.find(d => d.date === selectedDate)?.fullDate
-  );
+  const calendarDays = generateCalendarDays();
 
-  const handleDeleteTask = (taskId: string) => {
+  const navigateMonth = (direction: 'prev' | 'next') => {
+    const newDate = new Date(currentDate);
+    if (direction === 'prev') {
+      newDate.setMonth(newDate.getMonth() - 1);
+    } else {
+      newDate.setMonth(newDate.getMonth() + 1);
+    }
+    setCurrentDate(newDate);
+  };
+
+  const handleDateSelect = (day: CalendarDay) => {
+    if (day.isCurrentMonth) {
+      setSelectedDate(day.fullDate);
+    }
+  };
+
+  const handleDeleteTask = async (taskId: number) => {
     Alert.alert(
       'Delete Task',
       'Are you sure you want to delete this task?',
@@ -126,48 +93,45 @@ export default function CalendarView() {
         { 
           text: 'Delete', 
           style: 'destructive',
-          onPress: () => {
-            setTasks(tasks.filter(task => task.id !== taskId));
+          onPress: async () => {
+            try {
+              await deleteTask(taskId);
+              refreshTasks();
+            } catch (error) {
+              console.error('Failed to delete task:', error);
+            }
           }
         }
       ]
     );
   };
 
-  const handleToggleComplete = (taskId: string) => {
-    setTasks(tasks.map(task => 
-      task.id === taskId ? { ...task, completed: !task.completed } : task
-    ));
-  };
-
-  const handleAddTask = () => {
-    const selectedDateObj = calendarDates.find(d => d.date === selectedDate);
-    // In a real app, you would pass the selected date to the add task screen
-    router.push('/add-task');
-  };
-
-  const navigateMonth = (direction: 'prev' | 'next') => {
-    if (direction === 'prev') {
-      if (currentMonth === 0) {
-        setCurrentMonth(11);
-        setCurrentYear(currentYear - 1);
-      } else {
-        setCurrentMonth(currentMonth - 1);
-      }
-    } else {
-      if (currentMonth === 11) {
-        setCurrentMonth(0);
-        setCurrentYear(currentYear + 1);
-      } else {
-        setCurrentMonth(currentMonth + 1);
-      }
+  const handleToggleComplete = async (taskId: number) => {
+    try {
+      await toggleTaskCompletion(taskId);
+      refreshTasks();
+    } catch (error) {
+      console.error('Failed to toggle task completion:', error);
     }
   };
 
-  const handleMonthYearSelect = (month: number, year: number) => {
-    setCurrentMonth(month);
-    setCurrentYear(year);
-    setShowMonthYearPicker(false);
+  const handleAddTask = () => {
+    router.push('/add-task');
+  };
+
+  const formatTime = (timeString: string) => {
+    const [hours, minutes] = timeString.split(':');
+    return `${hours}:${minutes}`;
+  };
+
+  const formatSelectedDate = () => {
+    const date = new Date(selectedDate);
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
   };
 
   return (
@@ -183,13 +147,9 @@ export default function CalendarView() {
           <ChevronLeft size={24} color="#374151" />
         </TouchableOpacity>
         
-        <TouchableOpacity 
-          style={styles.monthContainer}
-          onPress={() => setShowMonthYearPicker(true)}
-        >
-          <Text style={styles.monthText}>{months[currentMonth]} {currentYear}</Text>
-          <ChevronDown size={20} color="#374151" />
-        </TouchableOpacity>
+        <Text style={styles.monthText}>
+          {months[currentDate.getMonth()]} {currentDate.getFullYear()}
+        </Text>
         
         <TouchableOpacity 
           style={styles.navButton}
@@ -199,117 +159,55 @@ export default function CalendarView() {
         </TouchableOpacity>
       </View>
 
-      {/* Month/Year Picker Modal */}
-      <Modal
-        visible={showMonthYearPicker}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowMonthYearPicker(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.pickerContainer}>
-            <View style={styles.pickerHeader}>
-              <Text style={styles.pickerTitle}>Select Month & Year</Text>
-              <TouchableOpacity onPress={() => setShowMonthYearPicker(false)}>
-                <Text style={styles.cancelButton}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-            
-            <View style={styles.pickerContent}>
-              {/* Month Selection */}
-              <View style={styles.pickerSection}>
-                <Text style={styles.sectionTitle}>Month</Text>
-                <ScrollView style={styles.optionsList} showsVerticalScrollIndicator={false}>
-                  {months.map((month, index) => (
-                    <TouchableOpacity
-                      key={month}
-                      style={[
-                        styles.optionItem,
-                        currentMonth === index && styles.selectedOption
-                      ]}
-                      onPress={() => handleMonthYearSelect(index, currentYear)}
-                    >
-                      <Text style={[
-                        styles.optionText,
-                        currentMonth === index && styles.selectedOptionText
-                      ]}>
-                        {month}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-              
-              {/* Year Selection */}
-              <View style={styles.pickerSection}>
-                <Text style={styles.sectionTitle}>Year</Text>
-                <ScrollView style={styles.optionsList} showsVerticalScrollIndicator={false}>
-                  {years.map((year) => (
-                    <TouchableOpacity
-                      key={year}
-                      style={[
-                        styles.optionItem,
-                        currentYear === year && styles.selectedOption
-                      ]}
-                      onPress={() => handleMonthYearSelect(currentMonth, year)}
-                    >
-                      <Text style={[
-                        styles.optionText,
-                        currentYear === year && styles.selectedOptionText
-                      ]}>
-                        {year}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            </View>
-          </View>
+      {/* Calendar Grid */}
+      <View style={styles.calendarContainer}>
+        {/* Day Headers */}
+        <View style={styles.dayHeaders}>
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+            <Text key={day} style={styles.dayHeader}>{day}</Text>
+          ))}
         </View>
-      </Modal>
 
-      {/* Calendar Date Strip */}
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        style={styles.calendarStrip}
-        contentContainerStyle={styles.calendarContent}
-      >
-        {calendarDates.map((item) => (
-          <TouchableOpacity
-            key={item.date}
-            style={[
-              styles.dateItem,
-              selectedDate === item.date && styles.selectedDateItem,
-              item.isToday && !selectedDate && styles.todayDateItem
-            ]}
-            onPress={() => setSelectedDate(item.date)}
-          >
-            <Text style={[
-              styles.dayText,
-              selectedDate === item.date && styles.selectedDayText,
-              item.isToday && styles.todayDayText
-            ]}>
-              {item.day}
-            </Text>
-            <Text style={[
-              styles.dateNumber,
-              selectedDate === item.date && styles.selectedDateNumber,
-              item.isToday && styles.todayDateNumber
-            ]}>
-              {item.date}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+        {/* Calendar Days */}
+        <View style={styles.calendarGrid}>
+          {calendarDays.map((day, index) => (
+            <TouchableOpacity
+              key={index}
+              style={[
+                styles.calendarDay,
+                !day.isCurrentMonth && styles.inactiveDay,
+                day.fullDate === selectedDate && styles.selectedDay,
+                day.isToday && styles.todayDay,
+              ]}
+              onPress={() => handleDateSelect(day)}
+              disabled={!day.isCurrentMonth}
+            >
+              <Text style={[
+                styles.calendarDayText,
+                !day.isCurrentMonth && styles.inactiveDayText,
+                day.fullDate === selectedDate && styles.selectedDayText,
+                day.isToday && styles.todayDayText,
+              ]}>
+                {day.date}
+              </Text>
+              {day.hasTask && day.isCurrentMonth && (
+                <View style={[
+                  styles.taskIndicator,
+                  day.fullDate === selectedDate && styles.selectedTaskIndicator
+                ]} />
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
 
       {/* Tasks Section */}
       <View style={styles.tasksHeader}>
         <Text style={styles.tasksTitle}>
-          Tasks for {calendarDates.find(d => d.date === selectedDate)?.fullDate}
+          Tasks for {formatSelectedDate()}
         </Text>
         <Text style={styles.taskCount}>
-          {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''}
+          {selectedDateTasks.length} task{selectedDateTasks.length !== 1 ? 's' : ''}
         </Text>
       </View>
 
@@ -319,7 +217,7 @@ export default function CalendarView() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.taskListContent}
       >
-        {filteredTasks.length === 0 ? (
+        {selectedDateTasks.length === 0 ? (
           <View style={styles.emptyState}>
             <Clock size={48} color="#D1D5DB" />
             <Text style={styles.emptyTitle}>No tasks for this date</Text>
@@ -328,13 +226,13 @@ export default function CalendarView() {
             </Text>
           </View>
         ) : (
-          filteredTasks.map((task) => (
+          selectedDateTasks.map((task) => (
             <View key={task.id} style={styles.taskCard}>
               <TouchableOpacity
                 style={styles.completeButton}
-                onPress={() => handleToggleComplete(task.id)}
+                onPress={() => task.id && handleToggleComplete(task.id)}
               >
-                {task.completed ? (
+                {task.is_completed ? (
                   <CheckCircle2 size={24} color="#22C55E" />
                 ) : (
                   <Circle size={24} color="#D1D5DB" />
@@ -344,31 +242,21 @@ export default function CalendarView() {
               <View style={styles.taskContent}>
                 <Text style={[
                   styles.taskTitle,
-                  task.completed && styles.completedTaskTitle
+                  task.is_completed && styles.completedTaskTitle
                 ]}>
                   {task.title}
                 </Text>
                 
-                <View style={styles.taskMeta}>
-                  <View style={[
-                    styles.categoryBadge,
-                    { backgroundColor: getCategoryColor(task.category) + '20' }
-                  ]}>
-                    <Text style={[
-                      styles.categoryText,
-                      { color: getCategoryColor(task.category) }
-                    ]}>
-                      {task.category}
-                    </Text>
-                  </View>
-                  
-                  <Text style={styles.taskTime}>{task.time}</Text>
-                </View>
+                <Text style={styles.taskDescription}>
+                  {task.description}
+                </Text>
+                
+                <Text style={styles.taskTime}>{formatTime(task.task_time)}</Text>
               </View>
               
               <TouchableOpacity
                 style={styles.deleteButton}
-                onPress={() => handleDeleteTask(task.id)}
+                onPress={() => task.id && handleDeleteTask(task.id)}
               >
                 <Trash2 size={20} color="#EF4444" />
               </TouchableOpacity>
@@ -411,138 +299,82 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 1,
   },
-  monthContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    gap: 8,
-  },
   monthText: {
     fontSize: 20,
     fontWeight: '700',
     color: '#111827',
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  pickerContainer: {
+  calendarContainer: {
     backgroundColor: '#FFFFFF',
+    marginHorizontal: 20,
     borderRadius: 16,
-    width: '90%',
-    maxHeight: '70%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  pickerHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  pickerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  cancelButton: {
-    fontSize: 16,
-    color: '#22C55E',
-    fontWeight: '600',
-  },
-  pickerContent: {
-    flexDirection: 'row',
-    flex: 1,
-  },
-  pickerSection: {
-    flex: 1,
-    padding: 20,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 12,
-  },
-  optionsList: {
-    maxHeight: 300,
-  },
-  optionItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    marginBottom: 4,
-  },
-  selectedOption: {
-    backgroundColor: '#22C55E',
-  },
-  optionText: {
-    fontSize: 16,
-    color: '#374151',
-    textAlign: 'center',
-  },
-  selectedOptionText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
-  calendarStrip: {
-    paddingHorizontal: 20,
+    padding: 16,
     marginBottom: 20,
-  },
-  calendarContent: {
-    gap: 12,
-  },
-  dateItem: {
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
-    minWidth: 60,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  selectedDateItem: {
+  dayHeaders: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  dayHeader: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  calendarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  calendarDay: {
+    width: '14.28%',
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    marginBottom: 8,
+  },
+  selectedDay: {
     backgroundColor: '#22C55E',
+    borderRadius: 8,
   },
-  todayDateItem: {
+  todayDay: {
     borderWidth: 2,
     borderColor: '#22C55E',
+    borderRadius: 8,
   },
-  dayText: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginBottom: 4,
-    fontWeight: '500',
+  inactiveDay: {
+    opacity: 0.3,
+  },
+  calendarDayText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
   },
   selectedDayText: {
     color: '#FFFFFF',
   },
   todayDayText: {
     color: '#22C55E',
-    fontWeight: '600',
   },
-  dateNumber: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
+  inactiveDayText: {
+    color: '#9CA3AF',
   },
-  selectedDateNumber: {
-    color: '#FFFFFF',
+  taskIndicator: {
+    position: 'absolute',
+    bottom: 2,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#22C55E',
   },
-  todayDateNumber: {
-    color: '#22C55E',
+  selectedTaskIndicator: {
+    backgroundColor: '#FFFFFF',
   },
   tasksHeader: {
     flexDirection: 'row',
@@ -555,6 +387,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#111827',
+    flex: 1,
   },
   taskCount: {
     fontSize: 14,
@@ -586,7 +419,7 @@ const styles = StyleSheet.create({
   },
   taskCard: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     backgroundColor: '#FFFFFF',
     padding: 16,
     borderRadius: 12,
@@ -599,6 +432,7 @@ const styles = StyleSheet.create({
   },
   completeButton: {
     marginRight: 12,
+    marginTop: 2,
   },
   taskContent: {
     flex: 1,
@@ -607,29 +441,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#111827',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   completedTaskTitle: {
     textDecorationLine: 'line-through',
     color: '#9CA3AF',
   },
-  taskMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  categoryBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  categoryText: {
-    fontSize: 12,
-    fontWeight: '600',
+  taskDescription: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 8,
+    lineHeight: 20,
   },
   taskTime: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#9CA3AF',
     fontWeight: '500',
   },
   deleteButton: {

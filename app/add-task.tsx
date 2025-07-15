@@ -10,22 +10,19 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
-import { ArrowLeft, Search, ChevronDown } from 'lucide-react-native';
+import { ArrowLeft } from 'lucide-react-native';
 import { router } from 'expo-router';
+import { useTasks } from '@/hooks/useDatabase';
+import { DatePicker } from '@/components/DateTimePicker';
 
 export default function AddTask() {
+  const { addTask } = useTasks();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [date, setDate] = useState('Monday, 18 2022');
-  const [startTime, setStartTime] = useState('2:30');
-  const [startPeriod, setStartPeriod] = useState('PM');
-  const [endTime, setEndTime] = useState('3:40');
-  const [endPeriod, setEndPeriod] = useState('PM');
-  const [selectedCategory, setSelectedCategory] = useState('Meetings');
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedTime, setSelectedTime] = useState(new Date());
 
-  const categories = ['Meetings', 'Designs', 'Calls', 'Development', 'Review'];
-
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!title.trim()) {
       Alert.alert('Error', 'Please enter a task title');
       return;
@@ -36,10 +33,24 @@ export default function AddTask() {
       return;
     }
 
-    // Here you would typically save the task
-    Alert.alert('Success', 'Task created successfully!', [
-      { text: 'OK', onPress: () => router.back() }
-    ]);
+    try {
+      const taskDate = selectedDate.toISOString().split('T')[0]; // YYYY-MM-DD
+      const taskTime = selectedTime.toTimeString().slice(0, 5); // HH:MM
+
+      await addTask({
+        title: title.trim(),
+        description: description.trim(),
+        task_date: taskDate,
+        task_time: taskTime,
+        is_completed: false,
+      });
+
+      Alert.alert('Success', 'Task created successfully!', [
+        { text: 'OK', onPress: () => router.back() }
+      ]);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to create task. Please try again.');
+    }
   };
 
   return (
@@ -52,9 +63,7 @@ export default function AddTask() {
           <ArrowLeft size={24} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Create New Task</Text>
-        <TouchableOpacity>
-          <Search size={24} color="#FFFFFF" />
-        </TouchableOpacity>
+        <View style={styles.placeholder} />
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -80,74 +89,26 @@ export default function AddTask() {
             placeholder="Enter task description"
             placeholderTextColor="#FFFFFF80"
             multiline
-            numberOfLines={3}
+            numberOfLines={4}
           />
         </View>
 
-        {/* Date Input */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Date</Text>
-          <TouchableOpacity style={styles.dateInput}>
-            <Text style={styles.dateText}>{date}</Text>
-            <ChevronDown size={20} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
+        {/* Date Picker */}
+        <DatePicker
+          value={selectedDate}
+          onChange={setSelectedDate}
+          label="Date"
+          mode="date"
+        />
 
-        {/* Time Section */}
-        <View style={styles.timeSection}>
-          <View style={styles.timeContainer}>
-            <View style={styles.timeInput}>
-              <TextInput
-                style={styles.timeText}
-                value={startTime}
-                onChangeText={setStartTime}
-                placeholder="2:30"
-                placeholderTextColor="#111827"
-              />
-              <TouchableOpacity style={styles.periodButton}>
-                <Text style={styles.periodText}>{startPeriod}</Text>
-                <ChevronDown size={16} color="#111827" />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.timeInput}>
-              <TextInput
-                style={styles.timeText}
-                value={endTime}
-                onChangeText={setEndTime}
-                placeholder="3:40"
-                placeholderTextColor="#111827"
-              />
-              <TouchableOpacity style={styles.periodButton}>
-                <Text style={styles.periodText}>{endPeriod}</Text>
-                <ChevronDown size={16} color="#111827" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-
-        {/* Category Section */}
-        <View style={styles.categorySection}>
-          <Text style={styles.categoryTitle}>Category</Text>
-          <View style={styles.categoryContainer}>
-            {categories.map((category) => (
-              <TouchableOpacity
-                key={category}
-                style={[
-                  styles.categoryChip,
-                  selectedCategory === category && styles.selectedCategoryChip
-                ]}
-                onPress={() => setSelectedCategory(category)}
-              >
-                <Text style={[
-                  styles.categoryText,
-                  selectedCategory === category && styles.selectedCategoryText
-                ]}>
-                  {category}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
+        {/* Time Picker */}
+        <DatePicker
+          value={selectedTime}
+          onChange={setSelectedTime}
+          label="Time"
+          mode="time"
+          format24Hour={true}
+        />
 
         {/* Submit Button */}
         <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
@@ -176,6 +137,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
   },
+  placeholder: {
+    width: 24,
+  },
   content: {
     flex: 1,
     paddingHorizontal: 20,
@@ -200,97 +164,15 @@ const styles = StyleSheet.create({
   textArea: {
     borderBottomWidth: 1,
     borderBottomColor: '#FFFFFF40',
-    minHeight: 60,
+    minHeight: 80,
     textAlignVertical: 'top',
-  },
-  dateInput: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#FFFFFF40',
-    paddingVertical: 12,
-  },
-  dateText: {
-    fontSize: 16,
-    color: '#FFFFFF',
-  },
-  timeSection: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 24,
-  },
-  timeContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 20,
-  },
-  timeInput: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  timeText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-    flex: 1,
-  },
-  periodButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    gap: 4,
-  },
-  periodText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  categorySection: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 40,
-  },
-  categoryTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 16,
-  },
-  categoryContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  categoryChip: {
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  selectedCategoryChip: {
-    backgroundColor: '#22C55E',
-  },
-  categoryText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#6B7280',
-  },
-  selectedCategoryText: {
-    color: '#FFFFFF',
   },
   submitButton: {
     backgroundColor: '#FFFFFF',
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
+    marginTop: 20,
     marginBottom: 40,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },

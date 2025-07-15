@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,85 +8,79 @@ import {
   SafeAreaView,
   StatusBar,
 } from 'react-native';
-import { Plus, Clock, User } from 'lucide-react-native';
+import { Plus, Clock, CircleCheck as CheckCircle2, Circle, Trash2 } from 'lucide-react-native';
 import { router } from 'expo-router';
-
-interface Task {
-  id: string;
-  title: string;
-  dueDate: string;
-  category: 'pending' | 'new' | 'completed';
-  description?: string;
-}
+import { useTasks, useTaskDates } from '@/hooks/useDatabase';
+import { Task } from '@/database/database';
 
 export default function Dashboard() {
-  const [selectedDate, setSelectedDate] = useState(13);
-  const [activeTab, setActiveTab] = useState<'pending' | 'new' | 'completed'>('pending');
+  const { tasks, loading, toggleTaskCompletion, deleteTask } = useTasks();
+  const { dates } = useTaskDates();
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
-  const calendarDates = [
-    { date: 12, day: 'Tue' },
-    { date: 13, day: 'Wed' },
-    { date: 14, day: 'Thu' },
-    { date: 15, day: 'Fri' },
-    { date: 16, day: 'Sat' },
-  ];
+  // Set initial selected date to today or first available date
+  useEffect(() => {
+    const today = new Date().toISOString().split('T')[0];
+    if (dates.includes(today)) {
+      setSelectedDate(today);
+    } else if (dates.length > 0) {
+      setSelectedDate(dates[0]);
+    }
+  }, [dates]);
 
-  const tasks: Task[] = [
-    {
-      id: '1',
-      title: 'NFT Dashboard',
-      dueDate: '14th June',
-      category: 'pending',
-      description: 'Design and develop NFT dashboard'
-    },
-    {
-      id: '2',
-      title: 'Landing Page',
-      dueDate: '15th June',
-      category: 'pending',
-      description: 'Create responsive landing page'
-    },
-    {
-      id: '3',
-      title: 'Onboarding Screen',
-      dueDate: '16th June',
-      category: 'pending',
-      description: 'Design user onboarding flow'
-    },
-    {
-      id: '4',
-      title: 'Mobile Programming',
-      dueDate: 'March 17 2025',
-      category: 'new',
-      description: 'Complete mobile app development'
-    },
-    {
-      id: '5',
-      title: 'Icon Modification',
-      dueDate: 'March 17 2025',
-      category: 'new',
-      description: 'Update app icons and branding'
-    },
-    {
-      id: '6',
-      title: 'UI Design Course',
-      dueDate: 'March 17 2025',
-      category: 'completed',
-      description: 'Finish UI/UX design course'
-    },
-  ];
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const options: Intl.DateTimeFormatOptions = { 
+      weekday: 'short', 
+      month: 'short', 
+      day: 'numeric' 
+    };
+    return date.toLocaleDateString('en-US', options);
+  };
 
-  const progressTasks = [
-    { id: '1', title: 'Mobile Programming', date: 'March 7' },
-    { id: '2', title: 'Icon Modification', date: 'March 17' },
-    { id: '3', title: 'UI Design Course', date: 'March 17' },
-    { id: '4', title: 'UI Design Course', date: 'March 17' },
-  ];
+  const formatDateTime = (dateString: string, timeString: string) => {
+    const date = new Date(dateString);
+    const [hours, minutes] = timeString.split(':');
+    
+    const dateOptions: Intl.DateTimeFormatOptions = { 
+      year: 'numeric',
+      month: 'long', 
+      day: 'numeric' 
+    };
+    
+    const formattedDate = date.toLocaleDateString('en-US', dateOptions);
+    const formattedTime = `${hours}:${minutes}`;
+    
+    return `${formattedDate} - ${formattedTime}`;
+  };
 
-  const filteredTasks = tasks.filter(task => task.category === activeTab);
+  const filteredTasks = selectedDate 
+    ? tasks.filter(task => task.task_date === selectedDate)
+    : tasks;
 
   const handleAddTask = () => {
     router.push('/add-task');
+  };
+
+  const handleToggleComplete = async (taskId: number) => {
+    try {
+      await toggleTaskCompletion(taskId);
+    } catch (error) {
+      console.error('Failed to toggle task completion:', error);
+    }
+  };
+
+  const handleDeleteTask = async (taskId: number) => {
+    try {
+      await deleteTask(taskId);
+    } catch (error) {
+      console.error('Failed to delete task:', error);
+    }
+  };
+
+  const truncateText = (text: string, maxLength: number) => {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
   };
 
   return (
@@ -102,126 +96,94 @@ export default function Dashboard() {
         </TouchableOpacity>
       </View>
 
-      {/* Calendar Strip */}
-      <View style={styles.calendarContainer}>
-        {calendarDates.map((item) => (
-          <TouchableOpacity
-            key={item.date}
-            style={[
-              styles.dateItem,
-              selectedDate === item.date && styles.selectedDateItem
-            ]}
-            onPress={() => setSelectedDate(item.date)}
+      {/* Date Filter - Only show if there are tasks */}
+      {dates.length > 0 && (
+        <View style={styles.dateFilterContainer}>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.dateFilterContent}
           >
-            <Text style={[
-              styles.dateNumber,
-              selectedDate === item.date && styles.selectedDateNumber
-            ]}>
-              {item.date}
-            </Text>
-            <Text style={[
-              styles.dayText,
-              selectedDate === item.date && styles.selectedDayText
-            ]}>
-              {item.day}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Task Categories */}
-        <View style={styles.tabContainer}>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'pending' && styles.activeTab]}
-            onPress={() => setActiveTab('pending')}
-          >
-            <Text style={[styles.tabText, activeTab === 'pending' && styles.activeTabText]}>
-              Pending
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'new' && styles.activeTab]}
-            onPress={() => setActiveTab('new')}
-          >
-            <Text style={[styles.tabText, activeTab === 'new' && styles.activeTabText]}>
-              New
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'completed' && styles.activeTab]}
-            onPress={() => setActiveTab('completed')}
-          >
-            <Text style={[styles.tabText, activeTab === 'completed' && styles.activeTabText]}>
-              Completed
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Task List */}
-        {activeTab === 'pending' && (
-          <View style={styles.taskSection}>
-            <Text style={styles.sectionTitle}>Task</Text>
-            {filteredTasks.map((task) => (
-              <View key={task.id} style={styles.taskCard}>
-                <View style={styles.taskIcon}>
-                  <Clock size={20} color="#FFFFFF" />
-                </View>
-                <View style={styles.taskContent}>
-                  <Text style={styles.taskTitle}>{task.title}</Text>
-                  <Text style={styles.taskDate}>{task.dueDate}</Text>
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {activeTab === 'new' && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalTasks}>
-            {filteredTasks.map((task) => (
-              <View key={task.id} style={styles.projectCard}>
-                <View style={styles.projectIcon}>
-                  <User size={20} color="#FFFFFF" />
-                </View>
-                <Text style={styles.projectTitle}>Project {task.id}</Text>
-                <Text style={styles.projectDescription}>{task.title}</Text>
-                <Text style={styles.projectDate}>{task.dueDate}</Text>
-              </View>
+            {dates.map((date) => (
+              <TouchableOpacity
+                key={date}
+                style={[
+                  styles.dateFilterItem,
+                  selectedDate === date && styles.selectedDateFilterItem
+                ]}
+                onPress={() => setSelectedDate(date)}
+              >
+                <Text style={[
+                  styles.dateFilterText,
+                  selectedDate === date && styles.selectedDateFilterText
+                ]}>
+                  {formatDate(date)}
+                </Text>
+              </TouchableOpacity>
             ))}
           </ScrollView>
-        )}
+        </View>
+      )}
 
-        {activeTab === 'completed' && (
-          <View style={styles.taskSection}>
-            <Text style={styles.sectionTitle}>Completed Tasks</Text>
-            {filteredTasks.map((task) => (
-              <View key={task.id} style={[styles.taskCard, styles.completedTask]}>
-                <View style={[styles.taskIcon, styles.completedIcon]}>
-                  <Clock size={20} color="#FFFFFF" />
-                </View>
-                <View style={styles.taskContent}>
-                  <Text style={[styles.taskTitle, styles.completedTitle]}>{task.title}</Text>
-                  <Text style={styles.taskDate}>{task.dueDate}</Text>
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* Progress Section */}
-        <View style={styles.progressSection}>
-          <Text style={styles.sectionTitle}>Progress</Text>
-          {progressTasks.map((task) => (
-            <View key={task.id} style={styles.progressCard}>
-              <View style={styles.progressIcon}>
-                <Clock size={20} color="#FFFFFF" />
-              </View>
-              <View style={styles.progressContent}>
-                <Text style={styles.progressTitle}>{task.title}</Text>
-                <Text style={styles.progressDate}>{task.date}</Text>
-              </View>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Task List */}
+        <View style={styles.taskSection}>
+          {dates.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Clock size={48} color="#D1D5DB" />
+              <Text style={styles.emptyTitle}>No tasks scheduled</Text>
+              <Text style={styles.emptySubtitle}>
+                Tap "Add Task" to create your first task
+              </Text>
             </View>
-          ))}
+          ) : filteredTasks.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Clock size={48} color="#D1D5DB" />
+              <Text style={styles.emptyTitle}>No tasks for this date</Text>
+              <Text style={styles.emptySubtitle}>
+                Select another date or add a new task
+              </Text>
+            </View>
+          ) : (
+            filteredTasks.map((task) => (
+              <View key={task.id} style={styles.taskCard}>
+                <TouchableOpacity
+                  style={styles.completeButton}
+                  onPress={() => task.id && handleToggleComplete(task.id)}
+                >
+                  {task.is_completed ? (
+                    <CheckCircle2 size={24} color="#22C55E" />
+                  ) : (
+                    <Circle size={24} color="#D1D5DB" />
+                  )}
+                </TouchableOpacity>
+                
+                <View style={styles.taskContent}>
+                  <Text style={[
+                    styles.taskTitle,
+                    task.is_completed && styles.completedTaskTitle
+                  ]}>
+                    {task.title}
+                  </Text>
+                  
+                  <Text style={styles.taskDescription}>
+                    {truncateText(task.description, 100)}
+                  </Text>
+                  
+                  <Text style={styles.taskDateTime}>
+                    {formatDateTime(task.task_date, task.task_time)}
+                  </Text>
+                </View>
+                
+                <TouchableOpacity
+                  style={styles.deleteButton}
+                  onPress={() => task.id && handleDeleteTask(task.id)}
+                >
+                  <Trash2 size={20} color="#EF4444" />
+                </TouchableOpacity>
+              </View>
+            ))
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -265,16 +227,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 6,
   },
-  calendarContainer: {
-    flexDirection: 'row',
+  dateFilterContainer: {
     paddingHorizontal: 20,
     paddingBottom: 20,
+  },
+  dateFilterContent: {
     gap: 12,
   },
-  dateItem: {
-    alignItems: 'center',
-    paddingVertical: 12,
+  dateFilterItem: {
     paddingHorizontal: 16,
+    paddingVertical: 12,
     borderRadius: 12,
     backgroundColor: '#FFFFFF',
     shadowColor: '#000',
@@ -283,70 +245,45 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 1,
   },
-  selectedDateItem: {
+  selectedDateFilterItem: {
     backgroundColor: '#22C55E',
   },
-  dateNumber: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  selectedDateNumber: {
-    color: '#FFFFFF',
-  },
-  dayText: {
-    fontSize: 12,
+  dateFilterText: {
+    fontSize: 14,
+    fontWeight: '600',
     color: '#6B7280',
-    marginTop: 2,
   },
-  selectedDayText: {
+  selectedDateFilterText: {
     color: '#FFFFFF',
   },
   content: {
     flex: 1,
     paddingHorizontal: 20,
   },
-  tabContainer: {
-    flexDirection: 'row',
-    marginBottom: 20,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
+  taskSection: {
+    marginBottom: 100,
   },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
+  emptyState: {
     alignItems: 'center',
-    borderRadius: 8,
+    justifyContent: 'center',
+    paddingVertical: 80,
   },
-  activeTab: {
-    backgroundColor: '#22C55E',
-  },
-  tabText: {
-    fontSize: 14,
+  emptyTitle: {
+    fontSize: 20,
     fontWeight: '600',
     color: '#6B7280',
+    marginTop: 16,
+    marginBottom: 8,
   },
-  activeTabText: {
-    color: '#FFFFFF',
-  },
-  taskSection: {
-    marginBottom: 30,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 16,
+  emptySubtitle: {
+    fontSize: 16,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    lineHeight: 24,
   },
   taskCard: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     backgroundColor: '#FFFFFF',
     padding: 16,
     borderRadius: 12,
@@ -357,115 +294,37 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 1,
   },
-  taskIcon: {
-    width: 40,
-    height: 40,
-    backgroundColor: '#22C55E',
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+  completeButton: {
     marginRight: 12,
+    marginTop: 2,
   },
   taskContent: {
     flex: 1,
+    paddingRight: 8,
   },
   taskTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  taskDate: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  horizontalTasks: {
-    marginBottom: 30,
-  },
-  projectCard: {
-    backgroundColor: '#22C55E',
-    padding: 20,
-    borderRadius: 16,
-    marginRight: 16,
-    width: 200,
-    shadowColor: '#22C55E',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  projectIcon: {
-    width: 32,
-    height: 32,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  projectTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#111827',
     marginBottom: 8,
   },
-  projectDescription: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    opacity: 0.9,
-    marginBottom: 12,
-  },
-  projectDate: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    opacity: 0.8,
-  },
-  completedTask: {
-    opacity: 0.7,
-  },
-  completedIcon: {
-    backgroundColor: '#10B981',
-  },
-  completedTitle: {
+  completedTaskTitle: {
     textDecorationLine: 'line-through',
-    color: '#6B7280',
+    color: '#9CA3AF',
   },
-  progressSection: {
-    marginBottom: 100,
-  },
-  progressCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  progressIcon: {
-    width: 40,
-    height: 40,
-    backgroundColor: '#22C55E',
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  progressContent: {
-    flex: 1,
-  },
-  progressTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  progressDate: {
+  taskDescription: {
     fontSize: 14,
     color: '#6B7280',
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  taskDateTime: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontWeight: '500',
+  },
+  deleteButton: {
+    padding: 4,
+    marginTop: 2,
   },
 });
