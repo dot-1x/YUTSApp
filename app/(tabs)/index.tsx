@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -10,33 +10,10 @@ import {
 } from 'react-native';
 import { Plus, Clock, CircleCheck as CheckCircle2, Circle, Trash2 } from 'lucide-react-native';
 import { router } from 'expo-router';
-import { useTasks, useTaskDates } from '@/hooks/useDatabase';
-import { Task } from '@/database/database';
+import { useTasks } from '@/hooks/useDatabase';
 
 export default function Dashboard() {
   const { tasks, loading, toggleTaskCompletion, deleteTask } = useTasks();
-  const { dates } = useTaskDates();
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
-
-  // Set initial selected date to today or first available date
-  useEffect(() => {
-    const today = new Date().toISOString().split('T')[0];
-    if (dates.includes(today)) {
-      setSelectedDate(today);
-    } else if (dates.length > 0) {
-      setSelectedDate(dates[0]);
-    }
-  }, [dates]);
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const options: Intl.DateTimeFormatOptions = { 
-      weekday: 'short', 
-      month: 'short', 
-      day: 'numeric' 
-    };
-    return date.toLocaleDateString('en-US', options);
-  };
 
   const formatDateTime = (dateString: string, timeString: string) => {
     const date = new Date(dateString);
@@ -53,10 +30,6 @@ export default function Dashboard() {
     
     return `${formattedDate} - ${formattedTime}`;
   };
-
-  const filteredTasks = selectedDate 
-    ? tasks.filter(task => task.task_date === selectedDate)
-    : tasks;
 
   const handleAddTask = () => {
     router.push('/add-task');
@@ -96,39 +69,10 @@ export default function Dashboard() {
         </TouchableOpacity>
       </View>
 
-      {/* Date Filter - Only show if there are tasks */}
-      {dates.length > 0 && (
-        <View style={styles.dateFilterContainer}>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.dateFilterContent}
-          >
-            {dates.map((date) => (
-              <TouchableOpacity
-                key={date}
-                style={[
-                  styles.dateFilterItem,
-                  selectedDate === date && styles.selectedDateFilterItem
-                ]}
-                onPress={() => setSelectedDate(date)}
-              >
-                <Text style={[
-                  styles.dateFilterText,
-                  selectedDate === date && styles.selectedDateFilterText
-                ]}>
-                  {formatDate(date)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Task List */}
         <View style={styles.taskSection}>
-          {dates.length === 0 ? (
+          {tasks.length === 0 ? (
             <View style={styles.emptyState}>
               <Clock size={48} color="#D1D5DB" />
               <Text style={styles.emptyTitle}>No tasks scheduled</Text>
@@ -136,16 +80,8 @@ export default function Dashboard() {
                 Tap "Add Task" to create your first task
               </Text>
             </View>
-          ) : filteredTasks.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Clock size={48} color="#D1D5DB" />
-              <Text style={styles.emptyTitle}>No tasks for this date</Text>
-              <Text style={styles.emptySubtitle}>
-                Select another date or add a new task
-              </Text>
-            </View>
           ) : (
-            filteredTasks.map((task) => (
+            tasks.map((task) => (
               <View key={task.id} style={styles.taskCard}>
                 <TouchableOpacity
                   style={styles.completeButton}
@@ -226,35 +162,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     marginLeft: 6,
-  },
-  dateFilterContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
-  dateFilterContent: {
-    gap: 12,
-  },
-  dateFilterItem: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  selectedDateFilterItem: {
-    backgroundColor: '#22C55E',
-  },
-  dateFilterText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  selectedDateFilterText: {
-    color: '#FFFFFF',
   },
   content: {
     flex: 1,
