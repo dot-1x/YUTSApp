@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,10 +9,22 @@ import {
   TouchableOpacity,
   ScrollView,
 } from 'react-native';
-import { Search, Clock } from 'lucide-react-native';
+import { Search, Clock, CircleCheck as CheckCircle2, Circle, Trash2 } from 'lucide-react-native';
+import { useTasks } from '@/hooks/useDatabase';
 
 export default function SearchTab() {
   const [searchQuery, setSearchQuery] = useState('');
+  const { tasks, toggleTaskCompletion, deleteTask } = useTasks();
+
+  const filteredTasks = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return [];
+    }
+    
+    return tasks.filter(task =>
+      task.title.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [tasks, searchQuery]);
 
   const recentSearches = [
     'Mobile Programming',
@@ -21,12 +33,42 @@ export default function SearchTab() {
     'NFT Dashboard',
   ];
 
-  const suggestedTasks = [
-    { id: '1', title: 'Mobile Programming', date: 'March 17' },
-    { id: '2', title: 'UI Design Course', date: 'March 17' },
-    { id: '3', title: 'Landing Page', date: 'June 15' },
-    { id: '4', title: 'NFT Dashboard', date: 'June 14' },
-  ];
+  const handleToggleComplete = async (taskId: number) => {
+    try {
+      await toggleTaskCompletion(taskId);
+    } catch (error) {
+      console.error('Failed to toggle task completion:', error);
+    }
+  };
+
+  const handleDeleteTask = async (taskId: number) => {
+    try {
+      await deleteTask(taskId);
+    } catch (error) {
+      console.error('Failed to delete task:', error);
+    }
+  };
+
+  const formatDateTime = (dateString: string, timeString: string) => {
+    const date = new Date(dateString);
+    const [hours, minutes] = timeString.split(':');
+    
+    const dateOptions: Intl.DateTimeFormatOptions = { 
+      year: 'numeric',
+      month: 'long', 
+      day: 'numeric' 
+    };
+    
+    const formattedDate = date.toLocaleDateString('en-US', dateOptions);
+    const formattedTime = `${hours}:${minutes}`;
+    
+    return `${formattedDate} - ${formattedTime}`;
+  };
+
+  const truncateText = (text: string, maxLength: number) => {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -45,44 +87,88 @@ export default function SearchTab() {
             style={styles.searchInput}
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholder="Search tasks, projects..."
+            placeholder="Search tasks by title..."
             placeholderTextColor="#9CA3AF"
           />
         </View>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Recent Searches */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Searches</Text>
-          <View style={styles.tagsContainer}>
-            {recentSearches.map((search, index) => (
-              <TouchableOpacity
-                key={index}
-                style={styles.tag}
-                onPress={() => setSearchQuery(search)}
-              >
-                <Text style={styles.tagText}>{search}</Text>
-              </TouchableOpacity>
-            ))}
+        {/* Show recent searches when no query */}
+        {!searchQuery.trim() && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Recent Searches</Text>
+            <View style={styles.tagsContainer}>
+              {recentSearches.map((search, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.tag}
+                  onPress={() => setSearchQuery(search)}
+                >
+                  <Text style={styles.tagText}>{search}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
-        </View>
+        )}
 
-        {/* Suggested Tasks */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Suggested Tasks</Text>
-          {suggestedTasks.map((task) => (
-            <TouchableOpacity key={task.id} style={styles.taskCard}>
-              <View style={styles.taskIcon}>
-                <Clock size={20} color="#FFFFFF" />
+        {/* Show search results */}
+        {searchQuery.trim() && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              Search Results ({filteredTasks.length})
+            </Text>
+            
+            {filteredTasks.length === 0 ? (
+              <View style={styles.emptyResults}>
+                <Search size={48} color="#D1D5DB" />
+                <Text style={styles.emptyTitle}>No tasks found</Text>
+                <Text style={styles.emptySubtitle}>
+                  Try searching with different keywords
+                </Text>
               </View>
-              <View style={styles.taskContent}>
-                <Text style={styles.taskTitle}>{task.title}</Text>
-                <Text style={styles.taskDate}>{task.date}</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
+            ) : (
+              filteredTasks.map((task) => (
+                <View key={task.id} style={styles.taskCard}>
+                  <TouchableOpacity
+                    style={styles.completeButton}
+                    onPress={() => task.id && handleToggleComplete(task.id)}
+                  >
+                    {task.is_completed ? (
+                      <CheckCircle2 size={24} color="#22C55E" />
+                    ) : (
+                      <Circle size={24} color="#D1D5DB" />
+                    )}
+                  </TouchableOpacity>
+                  
+                  <View style={styles.taskContent}>
+                    <Text style={[
+                      styles.taskTitle,
+                      task.is_completed && styles.completedTaskTitle
+                    ]}>
+                      {task.title}
+                    </Text>
+                    
+                    <Text style={styles.taskDescription}>
+                      {truncateText(task.description, 100)}
+                    </Text>
+                    
+                    <Text style={styles.taskDateTime}>
+                      {formatDateTime(task.task_date, task.task_time)}
+                    </Text>
+                  </View>
+                  
+                  <TouchableOpacity
+                    style={styles.deleteButton}
+                    onPress={() => task.id && handleDeleteTask(task.id)}
+                  >
+                    <Trash2 size={20} color="#EF4444" />
+                  </TouchableOpacity>
+                </View>
+              ))
+            )}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -154,9 +240,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#374151',
   },
+  emptyResults: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    textAlign: 'center',
+  },
   taskCard: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     backgroundColor: '#FFFFFF',
     padding: 16,
     borderRadius: 12,
@@ -167,26 +270,37 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 1,
   },
-  taskIcon: {
-    width: 40,
-    height: 40,
-    backgroundColor: '#22C55E',
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+  completeButton: {
     marginRight: 12,
+    marginTop: 2,
   },
   taskContent: {
     flex: 1,
+    paddingRight: 8,
   },
   taskTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     color: '#111827',
-    marginBottom: 4,
+    marginBottom: 8,
   },
-  taskDate: {
+  completedTaskTitle: {
+    textDecorationLine: 'line-through',
+    color: '#9CA3AF',
+  },
+  taskDescription: {
     fontSize: 14,
     color: '#6B7280',
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  taskDateTime: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontWeight: '500',
+  },
+  deleteButton: {
+    padding: 4,
+    marginTop: 2,
   },
 });

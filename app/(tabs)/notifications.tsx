@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -9,90 +9,11 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import { Bell, CircleCheck as CheckCircle2, Calendar, Clock, TriangleAlert as AlertTriangle, Trash2, MoveHorizontal as MoreHorizontal } from 'lucide-react-native';
-
-interface Notification {
-  id: string;
-  type: 'reminder' | 'deadline' | 'update' | 'completion';
-  title: string;
-  description: string;
-  timestamp: string;
-  timeAgo: string;
-  isNew: boolean;
-  taskId?: string;
-}
+import { Bell, CircleCheck as CheckCircle2, Calendar, Clock, TriangleAlert as AlertTriangle, Trash2 } from 'lucide-react-native';
+import { useTaskNotifications } from '@/hooks/useDatabase';
 
 export default function NotificationsScreen() {
-  const [activeFilter, setActiveFilter] = useState<'all' | 'reminders' | 'deadlines' | 'updates'>('all');
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: '1',
-      type: 'reminder',
-      title: 'Upcoming Task: UI Design Meeting',
-      description: 'Today at 2:30 PM',
-      timestamp: '2024-01-15T14:30:00',
-      timeAgo: '2 hours ago',
-      isNew: true,
-      taskId: 'task1'
-    },
-    {
-      id: '2',
-      type: 'deadline',
-      title: 'NFT Dashboard Due Tomorrow',
-      description: 'Complete by June 14th, 2022',
-      timestamp: '2024-01-15T09:00:00',
-      timeAgo: '7 hours ago',
-      isNew: true,
-      taskId: 'task2'
-    },
-    {
-      id: '3',
-      type: 'completion',
-      title: 'Task Completed: Landing Page',
-      description: 'Great job! Task marked as complete',
-      timestamp: '2024-01-14T16:45:00',
-      timeAgo: 'Yesterday',
-      isNew: false,
-      taskId: 'task3'
-    },
-    {
-      id: '4',
-      type: 'update',
-      title: 'Task Updated: Mobile Programming',
-      description: 'Due date changed to March 17, 2025',
-      timestamp: '2024-01-14T11:20:00',
-      timeAgo: 'Yesterday',
-      isNew: false,
-      taskId: 'task4'
-    },
-    {
-      id: '5',
-      type: 'reminder',
-      title: 'Daily Standup Call',
-      description: 'Tomorrow at 9:00 AM',
-      timestamp: '2024-01-13T18:00:00',
-      timeAgo: '2 days ago',
-      isNew: false,
-      taskId: 'task5'
-    },
-    {
-      id: '6',
-      type: 'deadline',
-      title: 'Icon Modification Project',
-      description: 'Due in 3 days - March 17, 2025',
-      timestamp: '2024-01-13T10:15:00',
-      timeAgo: '2 days ago',
-      isNew: false,
-      taskId: 'task6'
-    },
-  ]);
-
-  const filterTabs = [
-    { key: 'all', label: 'All' },
-    { key: 'reminders', label: 'Reminders' },
-    { key: 'deadlines', label: 'Deadlines' },
-    { key: 'updates', label: 'Updates' },
-  ];
+  const { notifications, loading, deleteNotification, clearAllNotifications } = useTaskNotifications();
 
   const getNotificationIcon = (type: string) => {
     const iconProps = { size: 20, color: '#FFFFFF' };
@@ -126,16 +47,8 @@ export default function NotificationsScreen() {
     }
   };
 
-  const filteredNotifications = notifications.filter(notification => {
-    if (activeFilter === 'all') return true;
-    if (activeFilter === 'reminders') return notification.type === 'reminder';
-    if (activeFilter === 'deadlines') return notification.type === 'deadline';
-    if (activeFilter === 'updates') return notification.type === 'update' || notification.type === 'completion';
-    return true;
-  });
-
-  const groupNotificationsByDate = (notifications: Notification[]) => {
-    const groups: { [key: string]: Notification[] } = {};
+  const groupNotificationsByDate = (notifications: any[]) => {
+    const groups: { [key: string]: any[] } = {};
     
     notifications.forEach(notification => {
       const date = new Date(notification.timestamp);
@@ -161,7 +74,7 @@ export default function NotificationsScreen() {
     return groups;
   };
 
-  const handleNotificationPress = (notification: Notification) => {
+  const handleNotificationPress = (notification: any) => {
     // In a real app, this would navigate to the specific task
     Alert.alert('Navigate to Task', `Opening task: ${notification.title}`);
   };
@@ -175,9 +88,7 @@ export default function NotificationsScreen() {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            setNotifications(notifications.filter(n => n.id !== notificationId));
-          }
+          onPress: () => deleteNotification(notificationId)
         }
       ]
     );
@@ -192,13 +103,13 @@ export default function NotificationsScreen() {
         {
           text: 'Clear All',
           style: 'destructive',
-          onPress: () => setNotifications([])
+          onPress: () => clearAllNotifications()
         }
       ]
     );
   };
 
-  const groupedNotifications = groupNotificationsByDate(filteredNotifications);
+  const groupedNotifications = groupNotificationsByDate(notifications);
   const newNotificationsCount = notifications.filter(n => n.isNew).length;
 
   return (
@@ -226,40 +137,13 @@ export default function NotificationsScreen() {
         </View>
       )}
 
-      {/* Filter Tabs */}
-      <View style={styles.filterContainer}>
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterContent}
-        >
-          {filterTabs.map((tab) => (
-            <TouchableOpacity
-              key={tab.key}
-              style={[
-                styles.filterTab,
-                activeFilter === tab.key && styles.activeFilterTab
-              ]}
-              onPress={() => setActiveFilter(tab.key as any)}
-            >
-              <Text style={[
-                styles.filterTabText,
-                activeFilter === tab.key && styles.activeFilterTabText
-              ]}>
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-
       {/* Notifications List */}
       <ScrollView 
         style={styles.notificationsList} 
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.notificationsContent}
       >
-        {filteredNotifications.length === 0 ? (
+        {notifications.length === 0 ? (
           <View style={styles.emptyState}>
             <Bell size={48} color="#D1D5DB" />
             <Text style={styles.emptyTitle}>No notifications</Text>
@@ -356,35 +240,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '600',
-  },
-  filterContainer: {
-    paddingBottom: 20,
-  },
-  filterContent: {
-    paddingHorizontal: 20,
-    gap: 8,
-  },
-  filterTab: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  activeFilterTab: {
-    backgroundColor: '#22C55E',
-  },
-  filterTabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  activeFilterTabText: {
-    color: '#FFFFFF',
   },
   notificationsList: {
     flex: 1,

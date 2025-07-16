@@ -42,7 +42,8 @@ export default function CalendarView() {
     startDate.setDate(startDate.getDate() - firstDay.getDay());
     
     const days: CalendarDay[] = [];
-    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
     
     // Get all task dates for marking
     const taskDates = new Set(tasks.map(task => task.task_date));
@@ -125,7 +126,7 @@ export default function CalendarView() {
   };
 
   const formatSelectedDate = () => {
-    const date = new Date(selectedDate);
+    const date = new Date(selectedDate + 'T00:00:00');
     return date.toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
@@ -340,7 +341,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   selectedDay: {
-    backgroundColor: '#22C55E',
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: '#22C55E',
     borderRadius: 8,
   },
   todayDay: {
@@ -357,7 +360,8 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   selectedDayText: {
-    color: '#FFFFFF',
+    color: '#22C55E',
+    fontWeight: '700',
   },
   todayDayText: {
     color: '#22C55E',
@@ -374,7 +378,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#22C55E',
   },
   selectedTaskIndicator: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#22C55E',
   },
   tasksHeader: {
     flexDirection: 'row',
